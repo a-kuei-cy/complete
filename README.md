@@ -31,3 +31,18 @@
 - 作品會公開，請確認學生個資、照片肖像及著作權授權。
 - 跨網站 iframe 與 Apps Script 的 postMessage 流程需在實際 GitHub Pages 網址及目標瀏覽器上測試。
 - 目前已產生程式碼並檢查主要檔案與欄位，但**尚未連接實際 Google 試算表與 Apps Script 執行線上端對端測試**。
+
+## 本次已設定
+`config.js` 已填入提供的 Apps Script /exec 網址。請另外確認 Apps Script 指令碼屬性 `SHEET_ID`、`SITE_ORIGIN`，並將 `index.html`、`config.js`、`sceslogo.png` 上傳 GitHub Pages。若修改 `Code.gs`，請在 Apps Script 重新部署新版本。
+
+
+## 新版：雙角色密碼登入
+- 管理者：登入時「上傳者帳號」留空，輸入原管理密碼。可上傳、刪除全部作品、新增/重設/停用上傳者帳號。
+- 上傳者：使用管理者建立的帳號與密碼登入；可上傳及刪除自己上傳的作品，不可管理其他帳號或刪除他人作品。
+- 舊作品沒有 ownerId 欄位資料，只有管理者可以刪除。
+- `作品資料` 工作表會自動補第八欄 `ownerId`。不要手動改動欄位順序。
+- 上傳者帳號及密碼雜湊儲存在 Apps Script 指令碼屬性 `UPLOADER_ACCOUNTS`。勿公開或手動修改。
+- 更換 `Code.gs` 後，請到 Apps Script「部署 > 管理部署作業 > 編輯 > 版本：新版本 > 部署」，確保 `/exec` 使用新版。
+- GitHub Pages 更新 `index.html`、`config.js`、`sceslogo.png`；不要將 `Code.gs` 或任何密碼放在 GitHub。
+- `SITE_ORIGIN` 請設為 `https://a-kuei-cy.github.io`。
+- 密碼登入依賴 Apps Script 跨網域 iframe 回傳；請在正式網站測試登入、上傳、刪除及帳號停用。

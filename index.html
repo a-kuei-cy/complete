@@ -4,11 +4,39 @@
 <dialog id="loginDialog"><h2>密碼登入</h2><form id="loginForm"><label>上傳者帳號（管理者請留空）<input name="username" autocomplete="username" placeholder="管理者不需填寫帳號"></label><label>密碼<input type="password" name="password" autocomplete="current-password" required></label><button type="submit">登入</button></form><button onclick="loginDialog.close()">關閉</button></dialog>
 <dialog id="accountsDialog"><h2>管理上傳者帳號</h2><p>只有管理者可新增、重設密碼或停用上傳者。</p><div id="accountList"></div><form id="accountForm"><label>帳號（英文、數字，3～30 字）<input name="username" required pattern="[a-zA-Z0-9_-]{3,30}"></label><label>密碼（至少 12 字元）<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><button type="submit">新增／重設密碼</button></form><button type="button" id="closeAccounts">關閉</button></dialog><dialog id="uploadDialog"><h2>新增作品</h2><form id="form"><label>作品名稱<input name="title" maxlength="80" required></label><label>作者<input name="author" maxlength="50" required></label><label>類別<select name="category"><option>教學工具</option><option>學生創作</option><option>校園活動</option><option>文件資源</option></select></label><label>介紹<textarea name="description" maxlength="500"></textarea></label><label>作品檔案（5MB 以下）<input name="file" type="file" accept=".html,.htm,.pdf,.png,.jpg,.jpeg,.webp,.gif,.txt" required></label><small>上傳作品會公開分享，請先確認個資、肖像權及著作權。</small><button id="send">上傳</button></form><button onclick="uploadDialog.close()">關閉</button></dialog>
 <dialog id="shareDialog"><h2 id="shareTitle">分享</h2><input id="shareLink" readonly><div class="actions"><button id="copy">複製連結</button><button id="open">查看作品</button><button onclick="shareDialog.close()">關閉</button></div><img id="qr" alt="分享 QR Code"></dialog>
-<iframe name="gasFrame" id="gasFrame" hidden title="背景傳送"></iframe><script src="config.js"></script><script>
+<script src="config.js"></script><script>
 const $=x=>document.getElementById(x);let works=[],idToken=sessionStorage.getItem("xingjia_role_token")||"",role=sessionStorage.getItem("xingjia_role")||"",userId=sessionStorage.getItem("xingjia_user")||"",page=1;const perPage=12;
 function msg(s){$("message").textContent=s}
 function get(action,extra={}){return new Promise((resolve,reject)=>{const cb="cb"+Math.random().toString(36).slice(2),s=document.createElement("script");const t=setTimeout(()=>done(new Error("連線逾時")),20000);function done(e,v){clearTimeout(t);delete window[cb];s.remove();e?reject(e):resolve(v)}window[cb]=v=>done(null,v);s.onerror=()=>done(new Error("無法連線"));const u=new URL(GAS_URL);u.searchParams.set("action",action);u.searchParams.set("callback",cb);Object.entries(extra).forEach(([k,v])=>u.searchParams.set(k,v));s.src=u;s && document.head.append(s)})}
-function post(data){return new Promise((resolve,reject)=>{const form=document.createElement("form");form.method="POST";form.action=GAS_URL;form.target="gasFrame";form.hidden=true;Object.entries(data).forEach(([k,v])=>{const x=document.createElement("input");x.name=k;x.value=v;form.append(x)});document.body.append(form);const timer=setTimeout(()=>finish(new Error("傳送逾時，請重新整理確認")),60000);function finish(err,result){clearTimeout(timer);window.removeEventListener("message",onMessage);form.remove();err?reject(err):resolve(result)}function onMessage(e){if(!/^https:\/\/(script\.google\.com|script\.googleusercontent\.com|[a-z0-9-]+-script\.googleusercontent\.com)$/.test(e.origin))return;if(e.data?.source!=="xingjia"||e.data.requestId!==data.requestId)return;finish(e.data.ok?null:new Error(e.data.error),e.data)}window.addEventListener("message",onMessage);form.submit()})}
+function post(data){
+ return new Promise((resolve,reject)=>{
+  const frame=document.createElement("iframe");
+  const frameName="gasFrame_"+Math.random().toString(36).slice(2);
+  frame.name=frameName;frame.hidden=true;frame.title="背景資料傳送";
+  const form=document.createElement("form");
+  form.method="POST";form.action=GAS_URL;form.target=frameName;form.hidden=true;
+  for(const [k,v] of Object.entries(data)){
+   const input=document.createElement("input");input.name=k;input.value=String(v??"");form.append(input);
+  }
+  let finished=false;
+  const timer=setTimeout(()=>finish(new Error("傳送逾時：請確認 Apps Script 已重新部署，並檢查 SITE_ORIGIN")),30000);
+  function finish(err,result){
+   if(finished)return;finished=true;clearTimeout(timer);
+   window.removeEventListener("message",onMessage);form.remove();frame.remove();
+   err?reject(err):resolve(result);
+  }
+  function onMessage(event){
+   const origin=event.origin;
+   if(!/^https:\/\/(?:script\.google\.com|(?:[a-z0-9-]+\.)*googleusercontent\.com)$/.test(origin))return;
+   const result=event.data;
+   if(!result||result.source!=="xingjia"||result.requestId!==data.requestId)return;
+   finish(result.ok?null:new Error(result.error||"操作失敗"),result);
+  }
+  window.addEventListener("message",onMessage);
+  document.body.append(frame,form);
+  form.submit();
+ });
+}
 function share(w){const u=new URL(location.href);u.searchParams.set("work",w.id);$("shareTitle").textContent=w.title;$("shareLink").value=u.href;$("qr").src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data="+encodeURIComponent(u.href);$("open").onclick=()=>window.open(w.url,"_blank","noopener,noreferrer");history.replaceState(null,"",u);$("shareDialog").showModal()}
 function render(){const q=$("search").value.toLowerCase(),c=$("category").value;const a=works.filter(w=>(!c||w.category===c)&&[w.title,w.author,w.description].join(" ").toLowerCase().includes(q));if($("sortOrder").value==="old")a.reverse();if($("sortOrder").value==="title")a.sort((x,y)=>x.title.localeCompare(y.title,"zh-Hant"));const pages=Math.max(1,Math.ceil(a.length/perPage));page=Math.min(page,pages);$("cards").replaceChildren();msg(`共 ${a.length} 件作品`);$("workCount").textContent=works.length;$("pageInfo").textContent=`第 ${page} / ${pages} 頁`;$("prevPage").disabled=page===1;$("nextPage").disabled=page===pages;for(const w of a.slice((page-1)*perPage,page*perPage)){const card=document.createElement("article");card.className="card";const h=document.createElement("h3");h.textContent=w.title;const p=document.createElement("p");p.textContent=`${w.category}｜${w.author}｜${w.date}`;const desc=document.createElement("p");desc.textContent=w.description;const actions=document.createElement("div");actions.className="actions";const view=document.createElement("button");view.textContent="查看";view.onclick=()=>window.open(w.url,"_blank","noopener,noreferrer");const s=document.createElement("button");s.textContent="分享 / QR";s.onclick=()=>share(w);actions.append(view,s);if(idToken&&(role==="admin"||(role==="uploader"&&w.ownerId===userId))){const del=document.createElement("button");del.textContent="刪除";del.onclick=async()=>{if(!confirm("確定刪除？"))return;try{await post({action:"delete",id:w.id,idToken,requestId:crypto.randomUUID()});await load()}catch(e){alert(e.message)}};actions.append(del)}const cover=document.createElement("div");cover.className="card-cover";cover.textContent=({"教學工具":"🌐","學生創作":"🎨","校園活動":"🏫","文件資源":"📄"})[w.category]||"✨";const tag=document.createElement("span");tag.className="card-tag";tag.textContent=w.category;cover.append(tag);card.append(cover,h,p,desc,actions);$("cards").append(card)}}
 async function load(){try{const r=await get("list");if(!r.ok)throw Error(r.error);works=r.works;render();const id=new URLSearchParams(location.search).get("work");if(id){const w=works.find(x=>x.id===id);if(w)share(w)}}catch(e){msg("讀取失敗："+e.message)}}
